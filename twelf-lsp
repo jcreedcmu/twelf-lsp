@@ -1,0 +1,3 @@
+#!/bin/bash
+
+node /home/jcreed/proj/twelf-lsp/out/index.js --stdio
