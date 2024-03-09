@@ -4,6 +4,7 @@ import * as path from 'path';
 // https://code.visualstudio.com/api/language-extensions/language-server-extension-guide
 
 import {
+  Range,
   CompletionItem,
   CompletionItemKind,
   DefinitionParams,
@@ -23,7 +24,6 @@ import {
 import * as fs from 'fs';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { debug } from './debug';
-import { mkWasmWrapper } from './wasm-wrapper';
 import { ParseResult, mkTwelfService } from './twelf-service';
 
 // Create a connection for the server, using Node's IPC as a transport.
@@ -151,20 +151,38 @@ async function go() {
 
   try {
     const twelf = await mkTwelfService(path.join(__dirname, '../assets/twelf.wasm'), () => { });
-    const parseResults: Record<string, ParseResult> = {};
+
+    const parseResults: Record<string, Range[]> = {};
 
     documents.onDidChangeContent(change => {
       const doc = change.document;
       const pr = twelf.parse(doc.getText());
-      parseResults[doc.uri] = pr;
-      debug('output of parse', pr.output);
+      const ranges: Range[] = [];
+      pr.output.forEach(line => {
+        let m;
+        if (m = line.match(/condec\[(\d+),(\d+)\]/)) {
+          const [undefined, bs, es] = m;
+          const b = parseInt(bs);
+          const e = parseInt(es);
+          ranges.push(Range.create(doc.positionAt(b), doc.positionAt(e)));
+        }
+      });
+      parseResults[doc.uri] = ranges;
+      debug('output of parse', ranges);
     });
 
     connection.onDefinition(async params => {
       debug('position:', params.position);
-      const range = { start: { line: 3, character: 0 }, end: { line: 3, character: 5 } };
-      const y = LocationLink.create(params.textDocument.uri, range, range);
-      return [y];
+      let i = 0;
+      const decls = parseResults[params.textDocument.uri];
+      for (const pos of decls) {
+        if (params.position.line >= pos.start.line && params.position.line <= pos.end.line && i > 0) {
+          const range = decls[i - 1];
+          return [LocationLink.create(params.textDocument.uri, range, range)];
+        }
+        i++;
+      }
+      return [];
     });
 
     connection.listen();
