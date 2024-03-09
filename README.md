@@ -43,15 +43,10 @@ I'm testing the mode using `eglot` in emacs. Here's the elisp I added to my conf
   )
 (add-to-list 'auto-mode-alist '("\\.fiction\\'" . fictional-mode))
 
-(defun start-fictional-lsp-server ()
-  "Start my custom LSP server."
-  (interactive)
-  (setq eglot-server-programs '()))
-
 (defun jcreed-fictional-mode-hook ()
   (interactive)
+  (eglot)
   (define-key fictional-mode-map (kbd "M-.") 'xref-find-definitions))
 
-(add-hook 'fictional-mode-hook 'start-fictional-lsp-server)
 (add-hook 'fictional-mode-hook 'jcreed-fictional-mode-hook)
 ```
