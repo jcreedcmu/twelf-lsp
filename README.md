@@ -5,6 +5,14 @@ An experiment to see if I can make an [LSP](https://en.wikipedia.org/wiki/Langua
 
 It currently relies on [a version of twelf still in a branch](https://github.com/jcreedcmu/twelf/tree/jcreed/lsp-helpers).
 
+Building
+--------
+
+```shell
+npm install
+make
+```
+
 Status
 ------
 
