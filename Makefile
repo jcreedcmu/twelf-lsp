@@ -1,0 +1,2 @@
+watch:
+	npx tsc -w

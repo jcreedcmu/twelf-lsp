@@ -1,14 +1,18 @@
+import * as path from 'path';
+
 // A lot of this code is taken from
 // https://code.visualstudio.com/api/language-extensions/language-server-extension-guide
 
 import {
   CompletionItem,
   CompletionItemKind,
+  DefinitionParams,
   Diagnostic,
   DiagnosticSeverity,
   DidChangeWatchedFilesNotification,
   InitializeParams,
   InitializeResult,
+  LocationLink,
   ProposedFeatures,
   TextDocumentPositionParams,
   TextDocumentSyncKind,
@@ -18,8 +22,9 @@ import {
 
 import * as fs from 'fs';
 import { TextDocument } from 'vscode-languageserver-textdocument';
-
-const debugLog = fs.createWriteStream("/tmp/debug.txt");
+import { debug } from './debug';
+import { mkWasmWrapper } from './wasm-wrapper';
+import { ParseResult, mkTwelfService } from './twelf-service';
 
 // Create a connection for the server, using Node's IPC as a transport.
 // Also include all preview / proposed LSP features.
@@ -30,7 +35,7 @@ let documents: TextDocuments<TextDocument> = new TextDocuments(TextDocument);
 
 connection.onInitialize((params: InitializeParams) => {
   let capabilities = params.capabilities;
-  debugLog.write(JSON.stringify(params.capabilities, null, 2) + '\n');
+  debug('capabilities:', params.capabilities);
 
   const result: InitializeResult = {
     capabilities: {
@@ -38,7 +43,8 @@ connection.onInitialize((params: InitializeParams) => {
       // Tell the client that this server supports code completion.
       completionProvider: {
         resolveProvider: true
-      }
+      },
+      definitionProvider: true,
     }
   };
 
@@ -64,16 +70,11 @@ let globalSettings: ExampleSettings = defaultSettings;
 let documentSettings: Map<string, Thenable<ExampleSettings>> = new Map();
 
 connection.onDidChangeConfiguration(change => {
-  debugLog.write('change config ' + JSON.stringify(change, null, 2) + '\n')
+  debug('change config', change);
   documents.all().forEach(validateTextDocument);
 });
 
 
-// The content of a text document has changed. This event is emitted
-// when the text document first opened or when its content has changed.
-documents.onDidChangeContent(change => {
-  validateTextDocument(change.document);
-});
 
 async function validateTextDocument(textDocument: TextDocument): Promise<void> {
   let settings = globalSettings;
@@ -114,7 +115,7 @@ connection.onCompletion(
         label: 'TypeScript',
         kind: CompletionItemKind.Class,
         insertText: '',
-        textEdit: { newText: 'foobar', range: { start: p, end: { line: p.line, character: p.character +8} } },
+        textEdit: { newText: 'foobar', range: { start: p, end: { line: p.line, character: p.character + 8 } } },
         data: 1
       },
       {
@@ -146,5 +147,31 @@ connection.onCompletionResolve(
 // for open, change and close text document events
 documents.listen(connection);
 
-// Listen on the connection
-connection.listen();
+async function go() {
+
+  try {
+    const twelf = await mkTwelfService(path.join(__dirname, '../assets/twelf.wasm'), () => { });
+    const parseResults: Record<string, ParseResult> = {};
+
+    documents.onDidChangeContent(change => {
+      const doc = change.document;
+      const pr = twelf.parse(doc.getText());
+      parseResults[doc.uri] = pr;
+      debug('output of parse', pr.output);
+    });
+
+    connection.onDefinition(async params => {
+      debug('position:', params.position);
+      const range = { start: { line: 3, character: 0 }, end: { line: 3, character: 5 } };
+      const y = LocationLink.create(params.textDocument.uri, range, range);
+      return [y];
+    });
+
+    connection.listen();
+  }
+  catch (e) {
+    debug(e);
+  }
+}
+
+go();
