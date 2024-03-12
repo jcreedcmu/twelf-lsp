@@ -16,6 +16,7 @@ make
 Status
 ------
 
+- 🚨 definitely not a real usable LSP server yet 🚨
 - Can react to `textDocument/didChange` by parsing the text of the document with `twelf.wasm`, and storing the results
 - Can respond to `textDocument/definition` by looking for a constructor declaration that contains the current point, and jumping to the previous constructor declaration.
 
